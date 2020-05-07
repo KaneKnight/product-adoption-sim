@@ -61,6 +61,7 @@ if __name__ == "__main__":
         (nodes[0], nodes[1]),
         (nodes[0], nodes[2]),
         (nodes[0], nodes[3]),
+        (nodes[1], nodes[4]),
     ])
 
     sim = Simulation(G)
