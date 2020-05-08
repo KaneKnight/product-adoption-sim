@@ -8,17 +8,17 @@ class Agent:
         self.adopted = False
 
 class Simulation:
-    def __init__(self, initGraph, **kwargs):
+    def __init__(self, initGraph, vH0, vH1, vL0, vL1, p1, p0, reward, alpha):
         self.G = initGraph
         self.tick = 0
-        self.vH0 = kwargs["vH0"]
-        self.vH1 = kwargs["vH1"]
-        self.vL0 = kwargs["vL0"]
-        self.vL1 = kwargs["vL1"]
-        self.p1 = kwargs["p1"]
-        self.p0 = kwargs["p0"]
-        self.reward = kwargs["reward"]
-        self.alpha = kwargs["alpha"]
+        self.vH0 = vH0
+        self.vH1 = vH1
+        self.vL0 = vL0
+        self.vL1 = vL1
+        self.p1 = p1
+        self.p0 = p0
+        self.reward = reward
+        self.alpha = alpha
 
     def simulate(self):
         pass
@@ -76,6 +76,7 @@ if __name__ == "__main__":
                      "vH0": 2,
                      "vL1": 0.2,
                      "vL0": 0.2,}
+                     
     pricingPolicy = {"p0": 0.5,
                      "p1": 1,
                      "reward": 0.2,}
@@ -84,4 +85,5 @@ if __name__ == "__main__":
     agentAssumptions = {"alpha": 0.1,}
 
     sim = Simulation(G, **productValues, **pricingPolicy, **agentAssumptions)
+    print(sim.__dict__)
     sim.drawGraphState()  
