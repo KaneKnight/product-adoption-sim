@@ -8,9 +8,17 @@ class Agent:
         self.adopted = False
 
 class Simulation:
-    def __init__(self, initGraph):
+    def __init__(self, initGraph, **kwargs):
         self.G = initGraph
         self.tick = 0
+        self.vH0 = kwargs["vH0"]
+        self.vH1 = kwargs["vH1"]
+        self.vL0 = kwargs["vL0"]
+        self.vL1 = kwargs["vL1"]
+        self.p1 = kwargs["p1"]
+        self.p0 = kwargs["p0"]
+        self.reward = kwargs["reward"]
+        self.alpha = kwargs["alpha"]
 
     def simulate(self):
         pass
@@ -64,5 +72,16 @@ if __name__ == "__main__":
         (nodes[1], nodes[4]),
     ])
 
-    sim = Simulation(G)
+    productValues = {"vH1": 1,
+                     "vH0": 2,
+                     "vL1": 0.2,
+                     "vL0": 0.2,}
+    pricingPolicy = {"p0": 0.5,
+                     "p1": 1,
+                     "reward": 0.2,}
+
+    # Agent's belief on the probabilty that their neigbours adopt in round 0
+    agentAssumptions = {"alpha": 0.1,}
+
+    sim = Simulation(G, **productValues, **pricingPolicy, **agentAssumptions)
     sim.drawGraphState()  
