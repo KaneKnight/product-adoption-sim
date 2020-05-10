@@ -8,19 +8,39 @@ class Agent:
         self.adopted = False
 
 class Simulation:
-    def __init__(self, initGraph, vH0, vH1, vL0, vL1, p1, p0, reward, alpha):
+    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, meanFieldStrategy):
+        # Graph topology info, intial adopters in round 0 assigned later. 
         self.G = initGraph
+
+        # Counter to show different stages of information diffusion
         self.tick = 0
+
+        # Value of product to agents in round 0 when quality high.
         self.vH0 = vH0
+        # Value of product to agents in round 1 when quality high.
         self.vH1 = vH1
+        # Value of product to agents in round 0 when quality low.
         self.vL0 = vL0
+        # Value of product to agents in round 1 when quality low.
         self.vL1 = vL1
+
+        # Price of product in round 1.
         self.p1 = p1
+        # Price of product in round 0.
         self.p0 = p0
+        # Reward agents who adopt in round 0 receive if their neigbour adopts in round 1.
         self.reward = reward
+
+        # Common belief of probabilty that neigbours adopt in round 0.
         self.alpha = alpha
 
+        # Function that specifies, for every possible degree d, the probability that an agent of degree d adopts in round 0.
+        self.meanFieldStrategy = meanFieldStrategy
+
     def simulate(self):
+        pass
+
+    def assignInitialAdopters(self):
         pass
 
     def drawGraphState(self):
@@ -72,18 +92,37 @@ if __name__ == "__main__":
         (nodes[1], nodes[4]),
     ])
 
-    productValues = {"vH1": 1,
-                     "vH0": 2,
-                     "vL1": 0.2,
-                     "vL0": 0.2,}
-                     
-    pricingPolicy = {"p0": 0.5,
-                     "p1": 1,
-                     "reward": 0.2,}
 
-    # Agent's belief on the probabilty that their neigbours adopt in round 0
-    agentAssumptions = {"alpha": 0.1,}
+    def meanFieldStrategy(d):
+        if d == 1:
+            return 0.1
+        elif d == 2:
+            return 0.2
+        elif d == 3:
+            return 0.4
+        else:
+            return 0.8 
 
-    sim = Simulation(G, **productValues, **pricingPolicy, **agentAssumptions)
+    simulationParameters = {
+                   # Product info
+                   "vH1": 1,
+                   "vH0": 2,
+                   "vL1": 0.2,
+                   "vL0": 0.2,
+                   "quality": 0,
+
+                   # Pricing policy
+                   "p0": 0.5,
+                   "p1": 1,
+                   "reward": 0.2,
+                    
+                   # Agent's belief on the probabilty that their neigbours adopt in round 0
+                   "alpha": 0.1,
+
+                   # Mean field strategy for agents.
+                   "meanFieldStrategy" : meanFieldStrategy,
+                   }        
+
+    sim = Simulation(G, **simulationParameters)
     print(sim.__dict__)
     sim.drawGraphState()  
