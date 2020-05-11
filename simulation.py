@@ -1,6 +1,9 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
+import random
+import utils
+import math
 
 class Agent:
     def __init__(self, id):
@@ -8,11 +11,11 @@ class Agent:
         self.adopted = False
 
 class Simulation:
-    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, meanFieldStrategy):
+    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, meanFieldStrategy):
         # Graph topology info, intial adopters in round 0 assigned later. 
         self.G = initGraph
 
-        # Counter to show different stages of information diffusion
+        # Counter to show different stages of information diffusion.
         self.tick = 0
 
         # Value of product to agents in round 0 when quality high.
@@ -23,6 +26,8 @@ class Simulation:
         self.vL0 = vL0
         # Value of product to agents in round 1 when quality low.
         self.vL1 = vL1
+        # Quality of product
+        self.quality = quality
 
         # Price of product in round 1.
         self.p1 = p1
@@ -33,15 +38,32 @@ class Simulation:
 
         # Common belief of probabilty that neigbours adopt in round 0.
         self.alpha = alpha
+        # Common belief of probabilty that product quality is high.
+        self.pHigh = pHigh
 
         # Function that specifies, for every possible degree d, the probability that an agent of degree d adopts in round 0.
         self.meanFieldStrategy = meanFieldStrategy
 
     def simulate(self):
-        pass
+        self.drawGraphState()
+        self.assignInitialAdopters()
+        self.drawGraphState()
 
     def assignInitialAdopters(self):
-        pass
+        for node in self.G.nodes():
+            degree = len(self.G[node])
+            payoffDelta = utils.payoffDeltaEarlyLate(self.alpha, self.vH0, self.vH1, self.vL0, degree, self.pHigh, self.p0, self.p1, self.reward)
+            print(node.id, payoffDelta)
+            if math.isclose(payoffDelta, 0):
+                # Node indifferent
+                pass
+            elif payoffDelta < 0:
+                # Node defers
+                pass
+            elif payoffDelta > 0:
+                # Node adopts in round 0     
+                node.adopted = True
+            
 
     def drawGraphState(self):
         # Get pos of nodes
@@ -74,6 +96,7 @@ class Simulation:
         nx.draw_networkx_labels(self.G, pos, labels, font_size=16)
 
         plt.savefig("./fig_tick{}.png".format(self.tick))
+        self.tick += 1
 
 
 
@@ -83,7 +106,6 @@ if __name__ == "__main__":
     nodes = []
     for i in range(10):
         nodes.append(Agent(i))
-    nodes[0].adopted = True    
     G = nx.Graph()
     G.add_edges_from([
         (nodes[0], nodes[1]),
@@ -118,11 +140,13 @@ if __name__ == "__main__":
                     
                    # Agent's belief on the probabilty that their neigbours adopt in round 0
                    "alpha": 0.1,
+                   # Agent's belief on the probabilty that the product qualtiy is high
+                   "pHigh" : 0.1,
 
-                   # Mean field strategy for agents.
+                   # Mean field strategy for agents
                    "meanFieldStrategy" : meanFieldStrategy,
                    }        
 
     sim = Simulation(G, **simulationParameters)
     print(sim.__dict__)
-    sim.drawGraphState()  
+    sim.simulate()  
