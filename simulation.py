@@ -49,10 +49,9 @@ class Simulation:
         self.initialAdopters = []
 
     def simulate(self):
+        self.drawGraphState()
         self.calculateMeanFieldStrategyForAgents()
-        self.drawGraphState()
         self.assignInitialAdopters()
-        self.drawGraphState()
         self.simulateDiffusionOfProduct()
 
     def calculateMeanFieldStrategyForAgents(self):
@@ -68,22 +67,25 @@ class Simulation:
             elif payoffDelta > 0:
                 # Node adopts in round 0     
                 meanFieldStrategy[degree] = 1
-        self.meanFieldStrategy = meanFieldStrategy        
+        self.meanFieldStrategy = meanFieldStrategy
+        print(meanFieldStrategy)        
     
     def assignInitialAdopters(self):
         for node in self.G.nodes():
             degree = len(self.G[node])
             adopted = random.random() < self.meanFieldStrategy[degree]
             node.adopted = adopted
-            value = self.vH0 if self.quality == 1 else self.vL0
-            node.payoff += value - self.p0
             if adopted:
+                value = self.vH0 if self.quality == 1 else self.vL0
+                node.payoff += value - self.p0
                 self.initialAdopters.append(node)
+        self.drawGraphState()    
 
     def simulateDiffusionOfProduct(self):
         unvisited = []
         for node in self.initialAdopters:
-            if self.quality == 1:
+            # If quality is high and payoff for neighbours is positive 
+            if self.quality == 1 and self.vH1 - self.p1 > 0:
                 neighbours = self.G[node]
                 node.payoff += len(neighbours) * self.reward
                 sublist = []
@@ -127,8 +129,7 @@ class Simulation:
         nx.draw_networkx_edges(self.G, pos, width=1.0, alpha=0.5)
 
         # Labels for nodes
-        labels = {node:(node.id, node.payoff) for node in self.G.nodes()}
-        print(labels)               
+        labels = {node:(node.id, node.payoff) for node in self.G.nodes()}             
 
         # Draw labels
         nx.draw_networkx_labels(self.G, pos, labels, font_size=10)
@@ -154,21 +155,21 @@ if __name__ == "__main__":
 
     simulationParameters = {
                    # Product info
-                   "vH1": 1,
-                   "vH0": 2,
+                   "vH1": 1.25,
+                   "vH0": 4,
                    "vL1": 0.2,
                    "vL0": 0.2,
                    "quality": 1,
 
                    # Pricing policy
-                   "p0": 0.5,
+                   "p0": 2,
                    "p1": 1,
                    "reward": 0.2,
                     
                    # Agent's belief on the probabilty that their neigbours adopt in round 0
                    "alpha": 0.1,
                    # Agent's belief on the probabilty that the product qualtiy is high
-                   "pHigh" : 0.1,
+                   "pHigh" : 0.336,
                    }        
 
     sim = Simulation(G, **simulationParameters)
