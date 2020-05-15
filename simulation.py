@@ -9,9 +9,10 @@ class Agent:
     def __init__(self, id):
         self.id = id
         self.adopted = False
+        self.payoff = 0
 
 class Simulation:
-    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, meanFieldStrategy):
+    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh):
         # Graph topology info, intial adopters in round 0 assigned later. 
         self.G = initGraph
 
@@ -42,30 +43,66 @@ class Simulation:
         self.pHigh = pHigh
 
         # Function that specifies, for every possible degree d, the probability that an agent of degree d adopts in round 0.
-        self.meanFieldStrategy = meanFieldStrategy
+        self.meanFieldStrategy = {}
+
+        # Initial adopters for starting the simulation.
+        self.initialAdopters = []
 
     def simulate(self):
+        self.calculateMeanFieldStrategyForAgents()
         self.drawGraphState()
         self.assignInitialAdopters()
         self.drawGraphState()
+        self.simulateDiffusionOfProduct()
 
+    def calculateMeanFieldStrategyForAgents(self):
+        meanFieldStrategy = {}
+        for degree in range(10):
+            payoffDelta = utils.payoffDeltaEarlyLate(self.alpha, self.vH0, self.vH1, self.vL0, degree, self.pHigh, self.p0, self.p1, self.reward)
+            if math.isclose(payoffDelta, 0):
+                # Node indifferent
+                meanFieldStrategy[degree] = 0.5
+            elif payoffDelta < 0:
+                # Node defers
+                meanFieldStrategy[degree] = 0
+            elif payoffDelta > 0:
+                # Node adopts in round 0     
+                meanFieldStrategy[degree] = 1
+        self.meanFieldStrategy = meanFieldStrategy        
+    
     def assignInitialAdopters(self):
         for node in self.G.nodes():
             degree = len(self.G[node])
-            payoffDelta = utils.payoffDeltaEarlyLate(self.alpha, self.vH0, self.vH1, self.vL0, degree, self.pHigh, self.p0, self.p1, self.reward)
-            print(node.id, payoffDelta)
-            if math.isclose(payoffDelta, 0):
-                # Node indifferent
-                pass
-            elif payoffDelta < 0:
-                # Node defers
-                pass
-            elif payoffDelta > 0:
-                # Node adopts in round 0     
-                node.adopted = True
-            
+            adopted = random.random() < self.meanFieldStrategy[degree]
+            node.adopted = adopted
+            value = self.vH0 if self.quality == 1 else self.vL0
+            node.payoff += value - self.p0
+            if adopted:
+                self.initialAdopters.append(node)
 
+    def simulateDiffusionOfProduct(self):
+        unvisited = []
+        for node in self.initialAdopters:
+            if self.quality == 1:
+                neighbours = self.G[node]
+                node.payoff += len(neighbours) * self.reward
+                sublist = []
+                for n in neighbours:
+                    if n not in self.initialAdopters:
+                        sublist.append(n)
+                unvisited.append(sublist)
+            else:
+                node.adopted = False   
+                self.drawGraphState()   
+                  
+        for stage in unvisited:
+            for node in stage:
+                node.adopted = True
+                node.payoff += self.vH1 - self.p1
+            self.drawGraphState()     
+            
     def drawGraphState(self):
+        plt.figure()
         # Get pos of nodes
         pos=nx.spectral_layout(self.G)
 
@@ -77,23 +114,24 @@ class Simulation:
         nx.draw_networkx_nodes(self.G, pos,
                         nodelist=adopted,
                         node_color='g',
-                        node_size=500,
+                        node_size=1200,
                         alpha=0.8)
         # Draw non adotped nodes                   
         nx.draw_networkx_nodes(self.G, pos,
                         nodelist=notAdopted,
                         node_color='r',
-                        node_size=500,
+                        node_size=1200,
                         alpha=0.8)
 
         # Draw edges
         nx.draw_networkx_edges(self.G, pos, width=1.0, alpha=0.5)
 
         # Labels for nodes
-        labels = {node:node.id for node in self.G.nodes()}               
+        labels = {node:(node.id, node.payoff) for node in self.G.nodes()}
+        print(labels)               
 
         # Draw labels
-        nx.draw_networkx_labels(self.G, pos, labels, font_size=16)
+        nx.draw_networkx_labels(self.G, pos, labels, font_size=10)
 
         plt.savefig("./fig_tick{}.png".format(self.tick))
         self.tick += 1
@@ -114,24 +152,13 @@ if __name__ == "__main__":
         (nodes[1], nodes[4]),
     ])
 
-
-    def meanFieldStrategy(d):
-        if d == 1:
-            return 0.1
-        elif d == 2:
-            return 0.2
-        elif d == 3:
-            return 0.4
-        else:
-            return 0.8 
-
     simulationParameters = {
                    # Product info
                    "vH1": 1,
                    "vH0": 2,
                    "vL1": 0.2,
                    "vL0": 0.2,
-                   "quality": 0,
+                   "quality": 1,
 
                    # Pricing policy
                    "p0": 0.5,
@@ -142,9 +169,6 @@ if __name__ == "__main__":
                    "alpha": 0.1,
                    # Agent's belief on the probabilty that the product qualtiy is high
                    "pHigh" : 0.1,
-
-                   # Mean field strategy for agents
-                   "meanFieldStrategy" : meanFieldStrategy,
                    }        
 
     sim = Simulation(G, **simulationParameters)
