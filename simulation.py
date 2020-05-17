@@ -5,6 +5,7 @@ import random
 import utils
 import math
 import scipy
+import scipy.stats as stats
 
 class Agent:
     def __init__(self, id):
@@ -56,6 +57,7 @@ class Simulation:
 
     def simulate(self):
         self.buildGraphFromDegreeDistribution()
+        self.graphPayoffs()
         self.drawGraphState()
         self.calculateMeanFieldStrategyForAgents()
         self.assignInitialAdopters()
@@ -78,8 +80,6 @@ class Simulation:
 
         print("Degree Sequence:", degreeSequence)   
         self.G = nx.configuration_model(degreeSequence)
-        degreeSequence = [d for n, d in self.G.degree()]
-        print("Real Degree Sequence:", degreeSequence) 
         for i in range(self.n):
             self.G.nodes[i]["id"] = i
             self.G.nodes[i]["adopted"] = False
@@ -138,7 +138,7 @@ class Simulation:
                 self.drawGraphState()     
             
     def drawGraphState(self):
-        plt.figure(figsize=(20,20))
+        plt.figure(figsize=(40,40))
         # Get pos of nodes
         pos=nx.kamada_kawai_layout(self.G)
 
@@ -150,13 +150,13 @@ class Simulation:
         nx.draw_networkx_nodes(self.G, pos,
                         nodelist=adopted,
                         node_color='g',
-                        node_size=4000,
+                        node_size=2000,
                         alpha=0.8)
         # Draw non adotped nodes                   
         nx.draw_networkx_nodes(self.G, pos,
                         nodelist=notAdopted,
                         node_color='r',
-                        node_size=4000,
+                        node_size=2000,
                         alpha=0.8)
 
         # Draw edges
@@ -170,6 +170,18 @@ class Simulation:
 
         plt.savefig("./fig_tick{}.png".format(self.tick))
         self.tick += 1
+
+    def graphPayoffs(self):
+        largest = max([d for n, d in self.G.degree()])
+        early = [utils.payoffEarly(self.alpha, self.vH0, self.vH1, self.vL0, d, self.pHigh, self.p0, self.reward) for d in range(largest)]
+        defer = [utils.payoffLate(self.alpha, self.vH1, d, self.pHigh, self.p1) for d in range(largest)]
+        degree = [i for i in range(1, largest + 1)]
+        print(degree)
+        plt.figure(figsize=(20,20))
+        plt.plot(degree, early)
+        plt.plot(degree, defer)
+        plt.savefig("./payoffs.png")
+            
 
 
 
@@ -202,30 +214,46 @@ if __name__ == "__main__":
         3 : 0.2,
         4 : 0.1,
         5 : 0.1,
+        6 : 0.1,
     }
+
+    lower, upper = 1, 5
+    mu, sigma = 3, 5
+    X = stats.truncnorm(
+        (lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
+    
+    N = 100
+    rounded = [int(round(x)) for x in X.rvs(N)]
+    largestDeg = max(rounded) 
+    degreeDistribution = {i : 0 for i in range(1, largestDeg + 1)}
+    for i in rounded:
+        degreeDistribution[i] += 1
+    degreeDistribution[30] = 8
+    for k in degreeDistribution:
+        degreeDistribution[k] = degreeDistribution[k] / (N + 8)    
 
     simulationParameters = {
                    # Product info
-                   "vH1": 1.25,
-                   "vH0": 4,
-                   "vL1": 0.2,
-                   "vL0": 0.2,
+                   "vH1": 1.2,
+                   "vH0": 0.3,
+                   "vL1": 0,
+                   "vL0": 0,
                    "quality": 1,
 
                    # Pricing policy
-                   "p0": 2,
-                   "p1": 1,
-                   "reward": 0.2,
+                   "p0": 1,
+                   "p1": 0.2,
+                   "reward": 0.05,
                     
                    # Agent's belief on the probabilty that their neigbours adopt in round 0
                    "alpha": 0.1,
                    # Agent's belief on the probabilty that the product qualtiy is high
-                   "pHigh" : 0.32,
+                   "pHigh" : 0.72,
 
                    # Distribution of the degrees of the graph.
                    "degreeDistribution" : degreeDistribution,
                    # Number of nodes to make up the graph.
-                   "n": 15,
+                   "n": 100,
                    }        
 
     sim = Simulation(G, **simulationParameters)
