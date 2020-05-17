@@ -15,7 +15,7 @@ class Simulation:
     def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, degreeDistribution, n):
         # Graph topology info, intial adopters in round 0 assigned later. 
         self.G = initGraph
-
+        self.F = initGraph
         # Counter to show different stages of information diffusion.
         self.tick = 0
 
@@ -65,9 +65,13 @@ class Simulation:
         for i in range(self.n):
            degreeSequence.append(utils.sampleDegreeFromDistribution(self.degreeDistribution))
         print("Degree Sequence:", degreeSequence)   
-        G=nx.expected_degree_graph(degreeSequence)
-        nx.draw(G)
-        plt.savefig("test.png") 
+        self.G = nx.expected_degree_graph(degreeSequence)
+        for i in range(self.n):
+            self.G.nodes[i]["id"] = i
+            self.G.nodes[i]["adopted"] = False
+            self.G.nodes[i]["payoff"] = 0
+        self.G = self.F    
+        
 
     def calculateMeanFieldStrategyForAgents(self):
         meanFieldStrategy = {}
@@ -87,68 +91,68 @@ class Simulation:
         print(meanFieldStrategy)        
     
     def assignInitialAdopters(self):
-        for node in self.G.nodes():
-            degree = len(self.G[node])
+        for i in range(self.n):
+            degree = len(self.G[i])
             adopted = random.random() < self.meanFieldStrategy[degree]
-            node.adopted = adopted
+            self.G.nodes[i]["adopted"] = adopted
             if adopted:
                 value = self.vH0 if self.quality == 1 else self.vL0
-                node.payoff += value - self.p0
-                self.initialAdopters.append(node)
+                self.G.nodes[i]["payoff"] += value - self.p0
+                self.initialAdopters.append(i)
         self.drawGraphState()    
 
     def simulateDiffusionOfProduct(self):
         unvisited = []
-        for node in self.initialAdopters:
+        for i in self.initialAdopters:
             # If quality is high and payoff for neighbours is positive 
             if self.quality == 1 and self.vH1 - self.p1 > 0:
-                neighbours = self.G[node]
-                node.payoff += len(neighbours) * self.reward
+                neighbours = self.G[i]
+                self.G.nodes[i]["payoff"] += len(neighbours) * self.reward
                 sublist = []
                 for n in neighbours:
                     if n not in self.initialAdopters:
                         sublist.append(n)
                 unvisited.append(sublist)
             else:
-                node.adopted = False   
+                self.G.nodes[i]["adopted"] = False   
                 self.drawGraphState()   
                   
         for stage in unvisited:
-            for node in stage:
-                node.adopted = True
-                node.payoff += self.vH1 - self.p1
+            for i in stage:
+                self.G.nodes[i]["adopted"] = True
+                self.G.nodes[i]["payoff"] += self.vH1 - self.p1
             self.drawGraphState()     
             
     def drawGraphState(self):
-        plt.figure()
+        plt.figure(figsize=(20,20))
         # Get pos of nodes
         pos=nx.spectral_layout(self.G)
 
         # Find nodes which have adopted product
-        adopted = [node for node in self.G.nodes() if node.adopted]
-        notAdopted = [node for node in self.G.nodes() if node not in adopted]
+        adopted = [i for i in range(self.n) if self.G.nodes[i]["adopted"]]
+        notAdopted = [node for node in self.G.nodes if node not in adopted]
         
         # Draw Adopted nodes
         nx.draw_networkx_nodes(self.G, pos,
                         nodelist=adopted,
                         node_color='g',
-                        node_size=1200,
+                        node_size=4000,
                         alpha=0.8)
         # Draw non adotped nodes                   
         nx.draw_networkx_nodes(self.G, pos,
                         nodelist=notAdopted,
                         node_color='r',
-                        node_size=1200,
+                        node_size=4000,
                         alpha=0.8)
 
         # Draw edges
         nx.draw_networkx_edges(self.G, pos, width=1.0, alpha=0.5)
 
         # Labels for nodes
-        labels = {node:(node.id, node.payoff) for node in self.G.nodes()}             
+        labels = {i:(i, self.G.nodes[i]["payoff"]) for i in range(self.n)}             
 
         # Draw labels
-        nx.draw_networkx_labels(self.G, pos, labels, font_size=10)
+        nx.draw_networkx_labels(self.G, pos, labels, font_size=30)
 
         plt.savefig("./fig_tick{}.png".format(self.tick))
         self.tick += 1
@@ -162,11 +166,18 @@ if __name__ == "__main__":
     for i in range(10):
         nodes.append(Agent(i))
     G = nx.Graph()
+    G.add_nodes_from([
+        (0, {"id": 0, "adopted": False, "payoff": 0}),
+        (1, {"id": 1, "adopted": False, "payoff": 0}),
+        (2, {"id": 2, "adopted": False, "payoff": 0}),
+        (3, {"id": 3, "adopted": False, "payoff": 0}),
+        (4, {"id": 4, "adopted": False, "payoff": 0}),
+    ])
     G.add_edges_from([
-        (nodes[0], nodes[1]),
-        (nodes[0], nodes[2]),
-        (nodes[0], nodes[3]),
-        (nodes[1], nodes[4]),
+        (0, 1),
+        (0, 2),
+        (0, 3),
+        (1, 4),
     ])
 
     degreeDistribution = {
@@ -183,7 +194,7 @@ if __name__ == "__main__":
                    "vH0": 4,
                    "vL1": 0.2,
                    "vL0": 0.2,
-                   "quality": 0,
+                   "quality": 1,
 
                    # Pricing policy
                    "p0": 2,
@@ -198,7 +209,7 @@ if __name__ == "__main__":
                    # Distribution of the degrees of the graph.
                    "degreeDistribution" : degreeDistribution,
                    # Number of nodes to make up the graph.
-                   "n": 6,
+                   "n": 5,
                    }        
 
     sim = Simulation(G, **simulationParameters)
