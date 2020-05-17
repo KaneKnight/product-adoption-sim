@@ -12,7 +12,7 @@ class Agent:
         self.payoff = 0
 
 class Simulation:
-    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh):
+    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, degreeDistribution, n):
         # Graph topology info, intial adopters in round 0 assigned later. 
         self.G = initGraph
 
@@ -48,15 +48,31 @@ class Simulation:
         # Initial adopters for starting the simulation.
         self.initialAdopters = []
 
+        # Distribution of the degrees of the graph.
+        self.degreeDistribution = degreeDistribution
+        # Number of nodes to make up the graph.
+        self.n = n
+
     def simulate(self):
+        self.buildGraphFromDegreeDistribution()
         self.drawGraphState()
         self.calculateMeanFieldStrategyForAgents()
         self.assignInitialAdopters()
         self.simulateDiffusionOfProduct()
 
+    def buildGraphFromDegreeDistribution(self):
+        degreeSequence = []            
+        for i in range(self.n):
+           degreeSequence.append(utils.sampleDegreeFromDistribution(self.degreeDistribution))
+        print("Degree Sequence:", degreeSequence)   
+        G=nx.expected_degree_graph(degreeSequence)
+        nx.draw(G)
+        plt.savefig("test.png") 
+
     def calculateMeanFieldStrategyForAgents(self):
         meanFieldStrategy = {}
-        for degree in range(10):
+        largest = list(self.degreeDistribution.keys()).pop()
+        for degree in range(1, largest + 1):
             payoffDelta = utils.payoffDeltaEarlyLate(self.alpha, self.vH0, self.vH1, self.vL0, degree, self.pHigh, self.p0, self.p1, self.reward)
             if math.isclose(payoffDelta, 0):
                 # Node indifferent
@@ -153,13 +169,21 @@ if __name__ == "__main__":
         (nodes[1], nodes[4]),
     ])
 
+    degreeDistribution = {
+        1 : 0.4,
+        2 : 0.3,
+        3 : 0,
+        4 : 0,
+        5 : 0.3,
+    }
+
     simulationParameters = {
                    # Product info
                    "vH1": 1.25,
                    "vH0": 4,
                    "vL1": 0.2,
                    "vL0": 0.2,
-                   "quality": 1,
+                   "quality": 0,
 
                    # Pricing policy
                    "p0": 2,
@@ -170,6 +194,11 @@ if __name__ == "__main__":
                    "alpha": 0.1,
                    # Agent's belief on the probabilty that the product qualtiy is high
                    "pHigh" : 0.336,
+
+                   # Distribution of the degrees of the graph.
+                   "degreeDistribution" : degreeDistribution,
+                   # Number of nodes to make up the graph.
+                   "n": 6,
                    }        
 
     sim = Simulation(G, **simulationParameters)
