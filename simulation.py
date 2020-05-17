@@ -4,6 +4,7 @@ import numpy as np
 import random
 import utils
 import math
+import scipy
 
 class Agent:
     def __init__(self, id):
@@ -139,7 +140,7 @@ class Simulation:
     def drawGraphState(self):
         plt.figure(figsize=(20,20))
         # Get pos of nodes
-        pos=nx.shell_layout(self.G)
+        pos=nx.kamada_kawai_layout(self.G)
 
         # Find nodes which have adopted product
         adopted = [i for i in range(self.n) if self.G.nodes[i]["adopted"]]
@@ -173,6 +174,8 @@ class Simulation:
 
 
 if __name__ == "__main__":
+
+    random.seed(305324)
 
     #Set up graph
     nodes = []
