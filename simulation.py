@@ -61,21 +61,33 @@ class Simulation:
         self.simulateDiffusionOfProduct()
 
     def buildGraphFromDegreeDistribution(self):
-        degreeSequence = []            
-        for i in range(self.n):
-           degreeSequence.append(utils.sampleDegreeFromDistribution(self.degreeDistribution))
+        degreeSequence = []
+        temp = 0            
+        for i in range(self.n - 1):
+           d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
+           degreeSequence.append(d)
+           temp += d
+
+        d = utils.sampleDegreeFromDistribution(self.degreeDistribution)   
+        while (temp + d) % 2 != 0:
+            d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
+        
+        degreeSequence.append(d)
+        temp += d
+
         print("Degree Sequence:", degreeSequence)   
-        self.G = nx.expected_degree_graph(degreeSequence)
+        self.G = nx.configuration_model(degreeSequence)
+        degreeSequence = [d for n, d in self.G.degree()]
+        print("Real Degree Sequence:", degreeSequence) 
         for i in range(self.n):
             self.G.nodes[i]["id"] = i
             self.G.nodes[i]["adopted"] = False
-            self.G.nodes[i]["payoff"] = 0
-        self.G = self.F    
+            self.G.nodes[i]["payoff"] = 0    
         
 
     def calculateMeanFieldStrategyForAgents(self):
         meanFieldStrategy = {}
-        largest = list(self.degreeDistribution.keys()).pop()
+        largest = max([d for n, d in self.G.degree()])
         for degree in range(1, largest + 1):
             payoffDelta = utils.payoffDeltaEarlyLate(self.alpha, self.vH0, self.vH1, self.vL0, degree, self.pHigh, self.p0, self.p1, self.reward)
             if math.isclose(payoffDelta, 0):
@@ -121,12 +133,13 @@ class Simulation:
             for i in stage:
                 self.G.nodes[i]["adopted"] = True
                 self.G.nodes[i]["payoff"] += self.vH1 - self.p1
-            self.drawGraphState()     
+            if len(stage) != 0:    
+                self.drawGraphState()     
             
     def drawGraphState(self):
         plt.figure(figsize=(20,20))
         # Get pos of nodes
-        pos=nx.spectral_layout(self.G)
+        pos=nx.shell_layout(self.G)
 
         # Find nodes which have adopted product
         adopted = [i for i in range(self.n) if self.G.nodes[i]["adopted"]]
@@ -181,11 +194,11 @@ if __name__ == "__main__":
     ])
 
     degreeDistribution = {
-        1 : 0.4,
+        1 : 0.3,
         2 : 0.3,
-        3 : 0,
-        4 : 0,
-        5 : 0.3,
+        3 : 0.2,
+        4 : 0.1,
+        5 : 0.1,
     }
 
     simulationParameters = {
@@ -204,12 +217,12 @@ if __name__ == "__main__":
                    # Agent's belief on the probabilty that their neigbours adopt in round 0
                    "alpha": 0.1,
                    # Agent's belief on the probabilty that the product qualtiy is high
-                   "pHigh" : 0.336,
+                   "pHigh" : 0.32,
 
                    # Distribution of the degrees of the graph.
                    "degreeDistribution" : degreeDistribution,
                    # Number of nodes to make up the graph.
-                   "n": 5,
+                   "n": 15,
                    }        
 
     sim = Simulation(G, **simulationParameters)
