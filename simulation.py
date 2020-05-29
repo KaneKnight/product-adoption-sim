@@ -6,6 +6,8 @@ import utils
 import math
 import scipy
 import scipy.stats as stats
+import collections
+import itertools
 
 class Agent:
     def __init__(self, id):
@@ -14,10 +16,9 @@ class Agent:
         self.payoff = 0
 
 class Simulation:
-    def __init__(self, initGraph, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, degreeDistribution, n):
+    def __init__(self, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, n, degreeDistribution=None, degreeSequence=None, initGraph=None):
         # Graph topology info, intial adopters in round 0 assigned later. 
         self.G = initGraph
-        self.F = initGraph
         # Counter to show different stages of information diffusion.
         self.tick = 0
 
@@ -52,56 +53,99 @@ class Simulation:
 
         # Distribution of the degrees of the graph.
         self.degreeDistribution = degreeDistribution
+        # Actual degrees of nodes as and alternative to distribution
+        self.degreeSequence = degreeSequence
         # Number of nodes to make up the graph.
         self.n = n
 
     def simulate(self):
-        self.buildGraphFromDegreeDistribution()
+        self.buildGraphFromDegreeInfo()
         self.graphPayoffs()
         self.drawGraphState()
-        self.calculateMeanFieldStrategyForAgents()
+        self.calculateMeanFieldStrategies()
+        self.calculateBestResponse()
+        self.calculateEdgePerspectiveDegreeDistribution()
+        self.calculateInformationalAccessOfStrategy()
         self.assignInitialAdopters()
         self.simulateDiffusionOfProduct()
 
-    def buildGraphFromDegreeDistribution(self):
-        degreeSequence = []
-        temp = 0            
-        for i in range(self.n - 1):
-           d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
-           degreeSequence.append(d)
-           temp += d
-
-        d = utils.sampleDegreeFromDistribution(self.degreeDistribution)   
-        while (temp + d) % 2 != 0:
-            d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
+    def buildGraphFromDegreeInfo(self):
+        if self.G != None:
+            degreeSequence = sorted([d for n, d in self.G.degree()], reverse=True)
+            degreeCount = dict(collections.Counter(degreeSequence))
+            for d in degreeCount:
+                degreeCount[d] = degreeCount[d] / self.n
+            self.degreeDistribution = degreeCount
+            return
         
-        degreeSequence.append(d)
-        temp += d
+        if self.degreeDistribution != None:
+            degreeSequence = []
+            temp = 0            
+            for i in range(self.n - 1):
+                d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
+                degreeSequence.append(d)
+                temp += d
+                d = utils.sampleDegreeFromDistribution(self.degreeDistribution)   
+            
+            while (temp + d) % 2 != 0:
+                d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
+        
+            degreeSequence.append(d)
+            temp += d
+            self.degreeSequence = degreeSequence 
+        if self.degreeSequence != None:  
+            self.G = nx.configuration_model(self.degreeSequence)
+            for i in range(self.n):
+                self.G.nodes[i]["id"] = i
+                self.G.nodes[i]["adopted"] = False
+                self.G.nodes[i]["payoff"] = 0
 
-        print("Degree Sequence:", degreeSequence)   
-        self.G = nx.configuration_model(degreeSequence)
-        for i in range(self.n):
-            self.G.nodes[i]["id"] = i
-            self.G.nodes[i]["adopted"] = False
-            self.G.nodes[i]["payoff"] = 0    
+    def calculateEdgePerspectiveDegreeDistribution(self):
+        denom = 0
+        for d in self.degreeDistribution:
+            denom += self.degreeDistribution[d] * d
+
+        self.edgePerspective = {}
+        for d in self.degreeDistribution:
+            self.edgePerspective[d] = (self.degreeDistribution[d] * d) / denom    
         
 
-    def calculateMeanFieldStrategyForAgents(self):
-        meanFieldStrategy = {}
+    def calculateMeanFieldStrategies(self):
+        bestResponses = []
         largest = max([d for n, d in self.G.degree()])
         for degree in range(1, largest + 1):
             payoffDelta = utils.payoffDeltaEarlyLate(self.alpha, self.vH0, self.vH1, self.vL0, degree, self.pHigh, self.p0, self.p1, self.reward)
             if math.isclose(payoffDelta, 0):
-                # Node indifferent
-                meanFieldStrategy[degree] = 0.5
+                # Node indifferent, ie choose either
+                bestResponses.append([0, 1])
             elif payoffDelta < 0:
                 # Node defers
-                meanFieldStrategy[degree] = 0
+                bestResponses.append([0])
             elif payoffDelta > 0:
                 # Node adopts in round 0     
-                meanFieldStrategy[degree] = 1
-        self.meanFieldStrategy = meanFieldStrategy
-        print(meanFieldStrategy)        
+                bestResponses.append([1])
+        cartesianProd = prod = list(itertools.product(*bestResponses))
+        print(cartesianProd)
+        meanFieldBestResponses = []
+        for i in range(len(cartesianProd)):
+            meanFieldBestResponse = {}
+            for degree in range(1, largest + 1):
+                meanFieldBestResponse[degree] = cartesianProd[i][degree - 1]
+            meanFieldBestResponses.append(meanFieldBestResponse)    
+        print(meanFieldBestResponses)        
+
+    def calculateBestResponse(self):
+        res = []
+        for d in self.meanFieldStrategy:
+            res.append(self.meanFieldStrategy[d])
+        prod = list(itertools.product(res))
+        print(prod)    
+
+    def calculateInformationalAccessOfStrategy(self):
+        self.infoAccess = 0
+        for d in self.meanFieldStrategy:
+            self.infoAccess += self.meanFieldStrategy[d] * self.edgePerspective[d]  
+        print(self.infoAccess)         
     
     def assignInitialAdopters(self):
         for i in range(self.n):
@@ -132,8 +176,10 @@ class Simulation:
                   
         for stage in unvisited:
             for i in stage:
-                self.G.nodes[i]["adopted"] = True
-                self.G.nodes[i]["payoff"] += self.vH1 - self.p1
+                # If not already visted in another stage
+                if not self.G.nodes[i]["adopted"]:
+                    self.G.nodes[i]["adopted"] = True
+                    self.G.nodes[i]["payoff"] += self.vH1 - self.p1
             if len(stage) != 0:    
                 self.drawGraphState()     
             
@@ -163,7 +209,7 @@ class Simulation:
         nx.draw_networkx_edges(self.G, pos, width=1.0, alpha=0.5)
 
         # Labels for nodes
-        labels = {i:(i, self.G.nodes[i]["payoff"]) for i in range(self.n)}             
+        labels = {i:(i, round(self.G.nodes[i]["payoff"], 2)) for i in range(self.n)}             
 
         # Draw labels
         nx.draw_networkx_labels(self.G, pos, labels, font_size=30)
@@ -176,7 +222,6 @@ class Simulation:
         early = [utils.payoffEarly(self.alpha, self.vH0, self.vH1, self.vL0, d, self.pHigh, self.p0, self.reward) for d in range(largest)]
         defer = [utils.payoffLate(self.alpha, self.vH1, d, self.pHigh, self.p1) for d in range(largest)]
         degree = [i for i in range(1, largest + 1)]
-        print(degree)
         plt.figure(figsize=(20,20))
         plt.plot(degree, early)
         plt.plot(degree, defer)
@@ -217,8 +262,8 @@ if __name__ == "__main__":
         6 : 0.1,
     }
 
-    lower, upper = 1, 5
-    mu, sigma = 3, 5
+    lower, upper = 1, 20
+    mu, sigma = 8, 5
     X = stats.truncnorm(
         (lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
     
@@ -250,12 +295,15 @@ if __name__ == "__main__":
                    # Agent's belief on the probabilty that the product qualtiy is high
                    "pHigh" : 0.72,
 
-                   # Distribution of the degrees of the graph.
-                   "degreeDistribution" : degreeDistribution,
                    # Number of nodes to make up the graph.
-                   "n": 100,
+                   "n": 5,
+                   # Distribution of the degrees of the graph.
+                   #"degreeDistribution" : degreeDistribution,
+                   # Alternative to distribution
+                   #"degreeSequence" : [10, 7, 3, 3, 2, 2, 1, 1, 1]
+                   "initGraph" : G,
                    }        
 
-    sim = Simulation(G, **simulationParameters)
+    sim = Simulation(**simulationParameters)
     print(sim.__dict__)
     sim.simulate()  
