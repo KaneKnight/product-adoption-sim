@@ -8,6 +8,8 @@ import scipy
 import scipy.stats as stats
 import collections
 import itertools
+import json
+from networkx.readwrite import json_graph
 
 class Agent:
     def __init__(self, id):
@@ -16,7 +18,7 @@ class Agent:
         self.payoff = 0
 
 class Simulation:
-    def __init__(self, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, n, degreeDistribution=None, degreeSequence=None, initGraph=None):
+    def __init__(self, vH0, vH1, vL0, vL1, quality, p1, p0, reward, alpha, pHigh, n, degreeDistribution=None, degreeSequence=None, initGraph=None, readGraph=False):
         # Graph topology info, intial adopters in round 0 assigned later. 
         self.G = initGraph
         # Counter to show different stages of information diffusion.
@@ -57,6 +59,9 @@ class Simulation:
         self.degreeSequence = degreeSequence
         # Number of nodes to make up the graph.
         self.n = n
+       
+        # Whether to read the graph from json.
+        self.read = readGraph
 
     def simulate(self):
         self.buildGraphFromDegreeInfo()
@@ -67,8 +72,14 @@ class Simulation:
         self.calculateInformationalAccessOfStrategy()
         self.assignInitialAdopters()
         self.simulateDiffusionOfProduct()
+        self.pdfOfGraph()
+        self.saveGraph()
 
     def buildGraphFromDegreeInfo(self):
+
+        if self.read:
+            self.readGraph()
+
         if self.G != None:
             degreeSequence = sorted([d for n, d in self.G.degree()], reverse=True)
             degreeCount = dict(collections.Counter(degreeSequence))
@@ -84,8 +95,8 @@ class Simulation:
                 d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
                 degreeSequence.append(d)
                 temp += d
-                d = utils.sampleDegreeFromDistribution(self.degreeDistribution)   
             
+            d = utils.sampleDegreeFromDistribution(self.degreeDistribution)   
             while (temp + d) % 2 != 0:
                 d = utils.sampleDegreeFromDistribution(self.degreeDistribution)
         
@@ -154,7 +165,7 @@ class Simulation:
                 value = self.vH0 if self.quality == 1 else self.vL0
                 self.G.nodes[i]["payoff"] += value - self.p0
                 self.initialAdopters.append(i)
-        self.drawGraphState()    
+        #self.drawGraphState()    
 
     def simulateDiffusionOfProduct(self):
         unvisited = []
@@ -171,7 +182,7 @@ class Simulation:
                 unvisited.append(sublist)
             else:
                 self.G.nodes[i]["adopted"] = False   
-                self.drawGraphState()   
+                #self.drawGraphState()   
                   
         for stage in unvisited:
             actVisit = False
@@ -182,7 +193,7 @@ class Simulation:
                     self.G.nodes[i]["payoff"] += self.vH1 - self.p1
                     actVisit = True
             if actVisit:    
-                self.drawGraphState()
+                #self.drawGraphState()
                 pass     
             
     def drawGraphState(self):
@@ -228,11 +239,35 @@ class Simulation:
         plt.plot(degree, early, label="Adopt Early")
         plt.plot(degree, defer, label="Defer Adoption")
         plt.legend(fontsize=30)
-        plt.xticks(range(1, largest + 1), fontsize=30)
+        plt.xticks(range(1, largest + 1, 5), fontsize=30)
+        plt.yticks(fontsize=30)
         plt.xlabel("Degree", fontsize=40)
         plt.ylabel("Payoff", fontsize=40)
         plt.savefig("./payoffs_{}.png".format(round(self.alpha, 3)))
-            
+
+    def pdfOfGraph(self):
+        plt.figure(figsize=(20,20))
+        plt.bar(list(self.degreeDistribution.keys()), self.degreeDistribution.values())
+        plt.xticks(fontsize=30)
+        plt.yticks(fontsize=30)
+        plt.xlabel("Degree", fontsize=40)
+        plt.ylabel("Probability", fontsize=40)
+        plt.savefig("./strat.png")
+
+    def saveGraph(self):
+        data = json_graph.adjacency_data(self.G)
+        with open('graph.json', 'w') as outfile:
+            json.dump(data, outfile)
+
+    def readGraph(self):
+        with open('graph.json', 'r') as f:
+            data = json.load(f)
+            G = json_graph.adjacency_graph(data)
+            for i in range(self.n):
+                 G.nodes[i]["payoff"] = 0
+                 G.nodes[i]["adopted"] = False
+            self.G = G           
+
 
 
 
@@ -280,15 +315,21 @@ if __name__ == "__main__":
         (0, 3),
     ])
 
-    d = [40]
-    a = [1] * 48
-    b = [3] * 6
-    d = d + a + b
+    fig, ax = plt.subplots(1, 1)
+    lambda_, N = 0.05, 60
+    bolt = np.arange(stats.boltzmann.ppf(0, lambda_, N, 1), stats.boltzmann.ppf(1, lambda_, N, 1))
+    probs = stats.boltzmann.pmf(bolt, lambda_, N, 1)
+    ax.plot(bolt, probs, 'bo', ms=8, label='boltzmann pmf')
+    degreeDist = {}
+    temp = 0
+    for i in range(len(bolt)):
+        degreeDist[int(bolt[i])] = probs[i]
+        temp += probs[i]
 
     simulationParameters = {
                    # Product info
-                   "vH1": 0.5,
-                   "vH0": 1,
+                   "vH1": 1.5,
+                   "vH0": 1.5,
                    "vL1": 0,
                    "vL0": 0,
                    "quality": 1,
@@ -296,26 +337,27 @@ if __name__ == "__main__":
                    # Pricing policy
                    "p0": 1,
                    "p1": 0.2,
-                   "reward": 1.5,
+                   "reward": 0.01,
                     
                    # Agent's belief on the probabilty that their neigbours adopt in round 0
-                   "alpha": 0.5,
+                   "alpha": 0.05,
                    # Agent's belief on the probabilty that the product qualtiy is high
-                   "pHigh" : 0.3,
+                   "pHigh" : 0.4,
 
                    # Number of nodes that make up the graph.
-                   "n": 4,
+                   "n": 70,
                    # Distribution of the degrees of the graph.
-                   #"degreeDistribution" : degreeDistribution,
+                   "degreeDistribution" : degreeDist,
                    # Alternative to distribution
                    #"degreeSequence" : d,
-                   "initGraph" : F,
+                   #"initGraph" : F,
+                   "readGraph" : True,
                    }
 
     
     
     #for i in range(10):
-        #simulationParameters["alpha"] += 0.1
+     #   simulationParameters["alpha"] += 0.1
     sim = Simulation(**simulationParameters)
     sim.simulate()  
-    print(sim.__dict__)
+#print(sim.meanFieldStrategy)

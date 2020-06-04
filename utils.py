@@ -18,10 +18,14 @@ def payoffLate(alpha, AH1, d, p, P1):
 def sampleDegreeFromDistribution(distribution):
     m = random.random()
     total = 0
+    r = 0
     for k, v in distribution.items():
         total += v
+
         if m <= total:
-            return k    
+            return k
+        r = k
+    return r        
 
 if __name__ == "__main__":
     import doctest
