@@ -1,6 +1,6 @@
 # product-adoption-sim
 
-Simulation of the mean-field game proposed in chapter 3 of Pricing and "Referrals in Diffusion on Networks" seen here:https://arxiv.org/pdf/1509.06544.pdf
+Simulation of the mean-field game proposed in chapter 3 of "Pricing and Referrals in Diffusion on Networks" seen here: https://arxiv.org/pdf/1509.06544.pdf
 
 The file simulation.py contains the simulation which is construted as a python object.
 
