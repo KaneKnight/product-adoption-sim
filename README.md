@@ -9,3 +9,6 @@ There are 4 options for deciding the input graph for the simulation:
 - Degree Sequence - The list of degrees that will form the graph.
 - Initial Graph - Networkx graph already constructed.
 - Saved Json Graph - Previous Networkx graph that has been dumped to a json file.
+
+The file utils.py contains mathematical functions for determining expected payoff of nodes within the network. Tested with doctests.
+
